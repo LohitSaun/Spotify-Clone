@@ -109,7 +109,16 @@ export async function fetchSpotifyProfile(accessToken: string): Promise<SpotifyU
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch Spotify profile (${response.status})`)
+    // Spotify's error body (e.g. { error: { status, message } }) usually says
+    // exactly why — surface it instead of just the status code.
+    const body = await response.text()
+    let message = body
+    try {
+      message = (JSON.parse(body) as { error?: { message?: string } }).error?.message ?? body
+    } catch {
+      // body wasn't JSON — fall back to the raw text.
+    }
+    throw new Error(`Failed to fetch Spotify profile (${response.status}): ${message}`)
   }
 
   return response.json()

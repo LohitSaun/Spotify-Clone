@@ -83,7 +83,7 @@ Why this is safe without a secret: an attacker who somehow intercepts the author
 - **Access token**: kept only in Redux state (in memory). Never written to any storage. A hard reload wipes it completely.
 - **Refresh token**: stored in `localStorage`.
 
-This is the one real security tradeoff in the app, and it's deliberate — see [Interview talking points](#interview-talking-points) below for the full reasoning.
+This is the one real security tradeoff in the app, and it's deliberate: the access token being memory-only means "stay logged in" *requires* the refresh token to persist somewhere, and a static SPA has no server-controlled, httpOnly cookie to put it in — `localStorage` is the pragmatic answer, at the cost of being readable by any script on the page if an XSS bug ever showed up elsewhere in the app. The proper fix is a backend-for-frontend holding the refresh token server-side, deliberately out of scope for a pure-frontend portfolio project.
 
 ### Staying logged in across reloads
 
@@ -105,7 +105,8 @@ The Web Playback SDK (`src/features/player/`) turns this browser tab into a Spot
 
 ## Known limitations
 
-- **Playback requires Spotify Premium.** This is a platform restriction from Spotify, not a limitation of this app — the Web Playback SDK simply doesn't stream audio for free accounts. Every other feature (browsing, search, playlists, liked songs, following) works on a free account.
+- **Playback requires Spotify Premium.** This is a platform restriction from Spotify, not a limitation of this app — the Web Playback SDK simply doesn't stream audio for free accounts.
+- **While the Spotify app is in Development Mode, the app *owner's* account needs an active Premium subscription to make any authenticated Web API call at all** — not just playback. A free-tier owner gets `403 Active premium subscription required for the owner of the app` on every logged-in request, including a plain `GET /me` right after a successful token exchange. This is a Spotify Developer Dashboard policy, unrelated to whether the OAuth/PKCE flow itself is implemented correctly — the flow can be verified as working (Spotify accepts the authorize request and issues a real token) even while every subsequent API call 403s on subscription grounds.
 - **Anonymous browsing needs `SPOTIFY_CLIENT_SECRET` configured** (see above). Without it, logged-out visitors see a login prompt instead of live catalog data.
 - **Some browse endpoints may be unavailable** depending on the Spotify app's access level — `Featured Playlists`, `Browse Categories`, and `Related Artists` were restricted by Spotify to apps with "extended quota mode" a while back. The app handles this gracefully (the section just doesn't render) rather than erroring.
 - **"Add to playlist" and "Liked Songs" heart state check one track at a time** (`isTrackSaved`, `isFollowingArtist` in the API layer) rather than batching visible tracks into one request. Simpler, and fine at this scale; a production app would batch these.
