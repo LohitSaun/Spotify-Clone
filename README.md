@@ -123,16 +123,3 @@ The Web Playback SDK (`src/features/player/`) turns this browser tab into a Spot
 
 That's it — no database, no separate backend to host. The only server-side code (`api/token.ts`) deploys automatically as part of the same Vercel project.
 
-## Interview talking points
-
-The trickiest engineering decisions in this project, and the reasoning behind them:
-
-**Storing the refresh token in `localStorage` at all.** The access token is memory-only by design, but "stay logged in across reloads" requires the refresh token to persist *somewhere*, and a static SPA has no server-controlled, httpOnly cookie to put it in. `localStorage` is readable by any script on the page, so an XSS bug anywhere in the app (or a compromised dependency) could exfiltrate it. The honest fix is a backend-for-frontend that holds the refresh token server-side and only ever gives the SPA short-lived access tokens — deliberately out of scope for a pure-frontend portfolio project, but the right answer to know and be able to explain.
-
-**Why a "pure frontend" app still has one serverless function.** `api/token.ts` exists solely to run Spotify's Client Credentials flow (which needs a secret) without putting that secret in the browser. It's a deliberate, minimal exception to "no backend" — one endpoint, one narrow job — not a sign the architecture gave up on the constraint.
-
-**Splitting playback control between the SDK and the REST API.** It would be simpler to route every playback action through one API, but Spotify's own SDK doesn't expose "start this URI" or shuffle/repeat toggles — REST-only for those — while play/pause/seek/skip *do* have direct SDK methods that skip a network round-trip entirely. The player feature reflects that split rather than papering over it with an unnecessary abstraction layer.
-
-**Redux slices vs. RTK Query, and why not everything is RTK Query.** Most data-fetching features are RTK Query endpoints on one shared API instance — that gets caching, tag-based invalidation, and auth/retry handling for free across search, browse, playlists, and more. `auth` and `player` are hand-written slices instead, because both have async logic RTK Query isn't shaped for: scheduling a proactive token refresh timer, and reducing a stream of SDK events (not HTTP responses) into state.
-
-**One-way state flow from the SDK.** The playback UI never optimistically guesses what should happen next — it dispatches a command (via the SDK or REST) and waits for the SDK's own `player_state_changed` event to confirm what actually happened. That event only fires on real transitions, though, so the seek bar's continuous motion is a local animation-frame tick that free-runs between events and snaps to the real position the instant one arrives — a small but deliberate piece of state reconciliation.
